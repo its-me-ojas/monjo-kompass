@@ -17,35 +17,41 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
     let left_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
-            Constraint::Length(3), // filter input
-            Constraint::Min(0),
-            Constraint::Length(3),
+            Constraint::Length(2), // Header
+            Constraint::Length(3), // Filter
+            Constraint::Min(0),    // List
+            Constraint::Length(1), // Footer
         ])
         .split(chunks[0]);
+
+    let right_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(0),    // Content
+            Constraint::Length(1), // Footer
+        ])
+        .split(chunks[1]);
 
     render_header(f, left_chunks[0], state);
     render_filter_input(f, left_chunks[1], state);
     render_document_list(f, left_chunks[2], state);
     render_footer(f, left_chunks[3]);
-    render_document_content(f, chunks[1], state);
+    
+    render_document_content(f, right_chunks[0], state);
+    render_content_footer(f, right_chunks[1]);
 }
 
 fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
     let title = if let (Some(db), Some(coll)) = (&state.current_database, &state.current_collection)
     {
-        format!("{}.{}", db, coll)
+        format!(" {}.{} ", db, coll)
     } else {
-        "No collection selected".to_string()
+        " No collection selected ".to_string()
     };
 
     let header = Paragraph::new(title)
-        .style(
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )
-        .block(Block::default().borders(Borders::ALL));
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .block(Block::default().borders(Borders::BOTTOM));
 
     f.render_widget(header, area);
 }
@@ -54,32 +60,32 @@ fn render_filter_input(f: &mut Frame, area: Rect, state: &AppState) {
     let (style, title, text) = if state.query_mode {
         (
             Style::default().fg(Color::Magenta),
-            "Advanced Query Mode (JSON - Enter to apply, Esc to cancel)",
+            " Query (JSON) ",
             state.query_input.as_str(),
         )
     } else if state.filter_mode {
         (
             Style::default().fg(Color::Yellow),
-            "Search Mode (type to filter, Esc to clear)",
+            " Search ",
             state.filter_input.as_str(),
         )
     } else if state.filter.is_some() {
         (
             Style::default().fg(Color::Green),
-            "Active Filter (press 'f' to search, '/' for query, Esc to clear)",
-            "", // Just use empty string for now
+            " Active Filter ",
+            "...", 
         )
     } else {
         (
-            Style::default().fg(Color::White),
-            "No filter (press 'f' to search, '/' for advanced query)",
-            "",
+            Style::default().fg(Color::DarkGray),
+            " Filter ",
+            "Press 'f' or '/'",
         )
     };
 
     let filter_widget = Paragraph::new(text)
         .style(style)
-        .block(Block::default().borders(Borders::ALL).title(title));
+        .block(Block::default().borders(Borders::BOTTOM).title(title).title_style(Style::default().fg(Color::Gray)));
 
     f.render_widget(filter_widget, area);
 }
@@ -100,27 +106,31 @@ fn render_document_list(f: &mut Frame, area: Rect, state: &AppState) {
             } else {
                 id
             };
+            
+            let prefix = if i == state.selected_doc_index {
+                "> "
+            } else {
+                "  "
+            };
 
             let style = if i == state.selected_doc_index {
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD)
-                    .bg(Color::DarkGray)
             } else {
                 Style::default().fg(Color::White)
             };
 
-            ListItem::new(Line::from(Span::styled(content, style)))
+            ListItem::new(Line::from(vec![
+                Span::styled(prefix, style),
+                Span::styled(content, style),
+            ]))
         })
         .collect();
 
-    let title = format!(
-        "Documents ({}/{})",
-        state.documents.len(),
-        state.documents.len()
-    );
+    let title = format!(" Documents ({}) ", state.documents.len());
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(title))
+        .block(Block::default().title(title).title_style(Style::default().fg(Color::Gray)))
         .style(Style::default().fg(Color::White));
 
     f.render_widget(list, area);
@@ -128,7 +138,6 @@ fn render_document_list(f: &mut Frame, area: Rect, state: &AppState) {
 
 fn render_document_content(f: &mut Frame, area: Rect, state: &AppState) {
     let content = if let Some(doc) = state.get_selected_document() {
-        // pretty print JSON with indentation
         match serde_json::to_string_pretty(&doc) {
             Ok(json) => json,
             Err(_) => format!("{:?}", doc),
@@ -137,7 +146,6 @@ fn render_document_content(f: &mut Frame, area: Rect, state: &AppState) {
         "No document selected".to_string()
     };
 
-    // split into lines and apply scroll offset
     let lines: Vec<Line> = content
         .lines()
         .skip(state.doc_scroll_offset)
@@ -148,8 +156,9 @@ fn render_document_content(f: &mut Frame, area: Rect, state: &AppState) {
         .style(Style::default().fg(Color::White))
         .block(
             Block::default()
-                .borders(Borders::ALL)
-                .title("Document Content (PgUp/PgDn to scroll)"),
+                .borders(Borders::LEFT)
+                .title(" Content ")
+                .title_style(Style::default().fg(Color::Gray)),
         )
         .wrap(Wrap { trim: false });
 
@@ -157,10 +166,18 @@ fn render_document_content(f: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_footer(f: &mut Frame, area: Rect) {
-    let footer_text = "q: quit | ↑/↓: navigate | Backspace: back | PgUp/PgDn: scroll | 'f': filter | 'r': refresh";
+    let footer_text = " [q] Quit  [↑/↓] Nav  [f] Filter ";
     let footer = Paragraph::new(footer_text)
-        .style(Style::default().fg(Color::Gray))
-        .block(Block::default().borders(Borders::ALL));
+        .style(Style::default().fg(Color::DarkGray).bg(Color::Black));
+
+    f.render_widget(footer, area);
+}
+
+fn render_content_footer(f: &mut Frame, area: Rect) {
+    let footer_text = " [PgUp/PgDn] Scroll  [r] Refresh ";
+    let footer = Paragraph::new(footer_text)
+        .style(Style::default().fg(Color::DarkGray).bg(Color::Black))
+        .block(Block::default().borders(Borders::LEFT)); // Match content border
 
     f.render_widget(footer, area);
 }

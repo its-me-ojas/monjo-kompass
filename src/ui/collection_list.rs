@@ -12,9 +12,9 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
-            Constraint::Min(0),
-            Constraint::Length(3),
+            Constraint::Length(2), // Header
+            Constraint::Min(0),    // List
+            Constraint::Length(1), // Footer
         ])
         .split(area);
 
@@ -25,12 +25,16 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
 
 fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
     let title = if let Some(db) = &state.current_database {
-        format!("Database: {}", db)
+        format!(" Database: {} ", db)
     } else {
-        "No database selected".to_string()
+        " No database selected ".to_string()
     };
 
-    f.render_widget(title, area);
+    let header = Paragraph::new(title)
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .block(Block::default().borders(Borders::BOTTOM));
+
+    f.render_widget(header, area);
 }
 
 fn render_collection_list(f: &mut Frame, area: Rect, state: &AppState) {
@@ -39,8 +43,15 @@ fn render_collection_list(f: &mut Frame, area: Rect, state: &AppState) {
         .iter()
         .enumerate()
         .map(|(i, coll)| {
+            let prefix = if i == state.selected_coll_index {
+                "> "
+            } else {
+                "  "
+            };
+
             let content = format!(
-                "{} ({} documents, {} indexes)",
+                "{}{} ({} documents, {} indexes)",
+                prefix,
                 coll.name,
                 coll.document_count,
                 coll.indexes.len()
@@ -50,28 +61,24 @@ fn render_collection_list(f: &mut Frame, area: Rect, state: &AppState) {
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD)
-                    .bg(Color::DarkGray)
             } else {
                 Style::default().fg(Color::White)
             };
             ListItem::new(Line::from(Span::styled(content, style)))
         })
         .collect();
+    
     let list = List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Collections (↑/↓ to navigate, Enter to select, Backspace to go back)"),
-        )
+        .block(Block::default().title(" Collections ").title_style(Style::default().fg(Color::Gray)))
         .style(Style::default().fg(Color::White));
+        
     f.render_widget(list, area);
 }
 
 fn render_footer(f: &mut Frame, area: Rect) {
-    let footer_text = "Press 'q' to quit | ↑/↓ to navigate | Enter to view documents | Backspace to go back | 'r' to refresh";
+    let footer_text = " [q] Quit  [↑/↓] Navigate  [Enter] View Docs  [Back] Go Back  [r] Refresh ";
     let footer = Paragraph::new(footer_text)
-        .style(Style::default().fg(Color::Gray))
-        .block(Block::default().borders(Borders::ALL));
+        .style(Style::default().fg(Color::DarkGray).bg(Color::Black));
 
     f.render_widget(footer, area);
 }

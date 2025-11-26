@@ -159,7 +159,7 @@ impl AppState {
     pub fn select_prev_doc(&mut self) {
         if !self.documents.is_empty() {
             if self.selected_doc_index == 0 {
-                self.selected_doc_index == self.documents.len() - 1;
+                self.selected_doc_index = self.documents.len() - 1;
             } else {
                 self.selected_doc_index -= 1;
             }

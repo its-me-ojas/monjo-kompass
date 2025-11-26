@@ -12,9 +12,9 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
-            Constraint::Min(0),
-            Constraint::Length(3),
+            Constraint::Length(2), // Header
+            Constraint::Min(0),    // List
+            Constraint::Length(1), // Footer
         ])
         .split(area);
 
@@ -26,19 +26,16 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
 fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
     let title = if let Some(conn) = &state.connection {
         format!(
-            "Mongonaut - Connected to {} (MongoDB {})",
+            " Connected to {} (MongoDB {}) ",
             conn.server_info.host, conn.server_info.version
         )
     } else {
-        "Mongonaut - Not connected".to_string()
+        " Not connected ".to_string()
     };
+    
     let header = Paragraph::new(title)
-        .style(
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )
-        .block(Block::default().borders(Borders::ALL));
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .block(Block::default().borders(Borders::BOTTOM));
 
     f.render_widget(header, area);
 }
@@ -49,16 +46,21 @@ fn render_database_list(f: &mut Frame, area: Rect, state: &AppState) {
         .iter()
         .enumerate()
         .map(|(i, db)| {
+            let prefix = if i == state.selected_db_index {
+                "> "
+            } else {
+                "  "
+            };
+
             let content = format!(
-                "{} ({} collections, {} bytes)",
-                db.name, db.collection_count, db.size_on_disk
+                "{}{} ({} collections, {} bytes)",
+                prefix, db.name, db.collection_count, db.size_on_disk
             );
 
             let style = if i == state.selected_db_index {
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD)
-                    .bg(Color::DarkGray)
             } else {
                 Style::default().fg(Color::White)
             };
@@ -68,22 +70,16 @@ fn render_database_list(f: &mut Frame, area: Rect, state: &AppState) {
         .collect();
 
     let list = List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Databases (↑/↓ to navigate, Enter to select, q to quit)"),
-        )
+        .block(Block::default().title(" Databases ").title_style(Style::default().fg(Color::Gray)))
         .style(Style::default().fg(Color::White));
 
     f.render_widget(list, area);
 }
 
 fn render_footer(f: &mut Frame, area: Rect) {
-    let footer_text =
-        "Press 'q' to quit | ↑/↓ to navigate | Enter to select database | 'r' to refresh";
+    let footer_text = " [q] Quit  [↑/↓] Navigate  [Enter] Select  [r] Refresh ";
     let footer = Paragraph::new(footer_text)
-        .style(Style::default().fg(Color::DarkGray))
-        .block(Block::default().borders(Borders::ALL));
+        .style(Style::default().fg(Color::DarkGray).bg(Color::Black));
 
     f.render_widget(footer, area);
 }
